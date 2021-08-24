@@ -73,8 +73,8 @@ pub fn parse_config_option(config: &Ini, section: &str, key: &str) -> Result<boo
         .get(section, key)
         .expect("Invalid section/key pair in config.ini.")[..]; // convert to string literal &str
 
-    let aliases_true: Vec<&str> = vec!["true", "True", "y"];
-    let aliases_false: Vec<&str> = vec!["false", "False", "n"];
+    let aliases_true: Vec<&str> = vec!["true", "True", "t", "yes", "Yes", "y"];
+    let aliases_false: Vec<&str> = vec!["false", "False", "f", "no", "No", "n"];
 
     let val: bool = match config_entry {
         config_entry if aliases_true.iter().any(|&i| i == config_entry) => true,
