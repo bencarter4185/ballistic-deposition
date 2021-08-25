@@ -8,3 +8,4 @@ edition = "2018"
 [dependencies]
 phf = { version = "0.10.0", features = ["macros"] }
 configparser = "2.1.0"
+itertools = "0.10.1"

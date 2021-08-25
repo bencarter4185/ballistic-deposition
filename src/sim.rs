@@ -3,13 +3,11 @@ Library file used for running the ballistic deposition simulations.
 */
 
 extern crate phf;
-use std::{error::Error, io::Split, vec};
-
 use phf::phf_map;
 
-extern crate configparser;
-use configparser::ini::Ini;
+use std::error::Error;
 
+use std::f32::consts; 
 
 // Map the maximum value of `t` for each substrate length `L` 
 pub static T_MAX: phf::Map<&'static str, i64> = phf_map! {
@@ -39,57 +37,81 @@ pub static SKIP_VALS: phf::Map<&'static str, i64> = phf_map! {
     "4096" => 25600,
 };
 
-pub fn open_config() -> Result<Ini, Box<dyn Error>> {
-    // Open the `config.ini` file and extract the contents
-
-    let mut config = Ini::new();
-    config.load("config.ini")?;
-    
-    Ok(config)
+fn deg_to_rad(val: f32) -> f32 {
+    val * (consts::PI / 180.)
 }
 
-pub fn parse_config_param(config: &Ini, section: &str, key: &str) -> Result<Vec<u32>, Box<dyn Error>> {
-    // Parse the config.ini file for its specified key value pair.
-    // This code works for parsing a vector of values only.
-    let config_entry = &config
-        .get(section, key)
-        .expect("Invalid section/key pair in `config.ini`.")[..]; // Convert to string literal
+pub fn gen_angles(angle_max: u32) -> Result<(), Box<dyn Error>> {
+    // Need to convert theta_max from u32 to f32 in order to use it as a negative.
+    let angle_max = angle_max as i32;
+    
+    let mut angles: Vec<i32> = Vec::new();
+    let mut prob_down_arr: Vec<f32> = Vec::new();
+    let mut prob_left_arr: Vec<f32> = Vec::new();
+    let mut prob_right_arr: Vec<f32> = Vec::new();
+    let mut prob_arr: Vec<f32> = Vec::new();
+    let mut prob_arr_sum: f32 = 0.;
 
-    let mut vals: Vec<u32> = vec![];
+    for angle in -angle_max ..= angle_max {
+        
+        let prob_temp = 0.5 * ((deg_to_rad(angle as f32 + 0.5)).sin() - (deg_to_rad(angle as f32 - 0.5)).sin());
+        prob_arr_sum += prob_temp;
+        prob_arr.push(prob_temp);
+        
+        angles.push(angle);
+        // Generate probability distribution for moving down every iteration
+        match angle {
+            -90..=-46 => {
+                prob_down_arr.push((angle as f32)/45. + 2.);
+            },
+            -45..=45 => {
+                prob_down_arr.push(1.);
+            }
+            46..=90 => {
+                prob_down_arr.push((-angle as f32)/45. + 2.);
+            }
+            _ => panic!("Angle out of bounds when generating probability distributions!")
+        }
 
-    let values = config_entry.split(',');
-    for v in values {
-        let temp: u32 = v.trim().parse().unwrap_or(0);
-        vals.push(temp);
+        match angle {
+            -90..=-46 => {
+                prob_left_arr.push(1.);
+                prob_right_arr.push(0.);
+            }
+            -45..=-1 => {
+                prob_left_arr.push((-angle as f32)/45.);
+                prob_right_arr.push(0.);
+            }
+            0 => {
+                prob_left_arr.push(0.);
+                prob_right_arr.push(0.);
+            }
+            1..=45 => {
+                prob_left_arr.push(0.);
+                prob_right_arr.push((angle as f32)/45.);
+            }
+            46..=90 => {
+                prob_left_arr.push(0.);
+                prob_right_arr.push(1.);
+            }
+            _ => panic!("Angle out of bounds when generating probability distributions!")
+        }
     }
 
-    Ok(vals)
+    for i in 0..prob_arr.len() {
+        prob_arr[i] *= 1./prob_arr_sum
+    } 
+
+    let mut prob_arr_sorted = prob_arr.clone();
+    prob_arr_sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
+
+    Ok(())
 }
 
-pub fn parse_config_option(config: &Ini, section: &str, key: &str) -> Result<bool, Box<dyn Error>> {
-    // Parse the config.ini file for its specified key value pair.
-    // This code works for parsing boolean values only.
-    let config_entry = &config
-        .get(section, key)
-        .expect("Invalid section/key pair in config.ini.")[..]; // convert to string literal &str
+pub fn run(length: u32, angle: u32, seed: u32, impurity: u32) {
+    println!(r"Running simulation for:
+    length = {}, angle = {}, seed = {}, impurity = {}...
+    ", length, angle, seed, impurity);
 
-    let aliases_true: Vec<&str> = vec!["true", "True", "t", "yes", "Yes", "y"];
-    let aliases_false: Vec<&str> = vec!["false", "False", "f", "no", "No", "n"];
 
-    let val: bool = match config_entry {
-        config_entry if aliases_true.iter().any(|&i| i == config_entry) => true,
-        config_entry if aliases_false.iter().any(|&i| i == config_entry) => false,
-        _ => {
-            println!(r"WARNING: The entry for `{}, {}` is malformed. Setting value to `false` by default.
-            Please specify one of {:?} for `true`,
-            or one of {:?} for `false`.", section, key, aliases_true, aliases_false);
-            false
-        }, 
-    };
-
-    Ok(val)
-}
-
-pub fn run_sim() {
-    println!("Running simulation...");
 }
