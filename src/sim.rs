@@ -2,116 +2,39 @@
 Library file used for running the ballistic deposition simulations.
 */
 
-extern crate phf;
-use phf::phf_map;
+use std::time::Instant;
 
-use std::error::Error;
+mod random;
+use random::Ran2Generator;
 
-use std::f32::consts; 
+pub fn run(length: u32, max_seed: u32, impurity: u32) {
+    println!(
+        r"Running simulation for
+        Substrate Length = {}, Seeds = {}, Impurity Recurrence = {}...",
+        length, max_seed, impurity
+    );
 
-// Map the maximum value of `t` for each substrate length `L` 
-pub static T_MAX: phf::Map<&'static str, i64> = phf_map! {
-    "8" => 10_000,
-    "16" => 10_000,
-    "32" => 10_000,
-    "64" => 10_000,
-    "128" => 10_000,
-    "256" => 10_000,
-    "512" => 10_000,
-    "1024" => 100_000,
-    "2048" => 100_000,
-    "4096" => 100_000,
-};
+    /*
+    TEST: Generate 2^32 - 1 random numbers and benchmark how long it takes
+    */
+    let iterations: u32 = u32::MAX;
 
-// Map the maximum value of `t` for each substrate length `L` 
-pub static SKIP_VALS: phf::Map<&'static str, i64> = phf_map! {
-    "8" => 5,
-    "16" => 10,
-    "32" => 20,
-    "64" => 40,
-    "128" => 80,
-    "256" => 160,
-    "512" => 320,
-    "1024" => 6400,
-    "2048" => 12800,
-    "4096" => 25600,
-};
+    let now = Instant::now();
+    println!("Generating {} random numbers...", iterations);
 
-fn deg_to_rad(val: f32) -> f32 {
-    val * (consts::PI / 180.)
-}
+    let mut x: f64;
+    let mut sum: f64 = 0.0;
+    let mut rng: Ran2Generator = Ran2Generator::new();
 
-pub fn gen_angles(angle_max: u32) -> Result<(), Box<dyn Error>> {
-    // Need to convert theta_max from u32 to f32 in order to use it as a negative.
-    let angle_max = angle_max as i32;
-    
-    let mut angles: Vec<i32> = Vec::new();
-    let mut prob_down_arr: Vec<f32> = Vec::new();
-    let mut prob_left_arr: Vec<f32> = Vec::new();
-    let mut prob_right_arr: Vec<f32> = Vec::new();
-    let mut prob_arr: Vec<f32> = Vec::new();
-    let mut prob_arr_sum: f32 = 0.;
-
-    for angle in -angle_max ..= angle_max {
-        
-        let prob_temp = 0.5 * ((deg_to_rad(angle as f32 + 0.5)).sin() - (deg_to_rad(angle as f32 - 0.5)).sin());
-        prob_arr_sum += prob_temp;
-        prob_arr.push(prob_temp);
-        
-        angles.push(angle);
-        // Generate probability distribution for moving down every iteration
-        match angle {
-            -90..=-46 => {
-                prob_down_arr.push((angle as f32)/45. + 2.);
-            },
-            -45..=45 => {
-                prob_down_arr.push(1.);
-            }
-            46..=90 => {
-                prob_down_arr.push((-angle as f32)/45. + 2.);
-            }
-            _ => panic!("Angle out of bounds when generating probability distributions!")
-        }
-
-        match angle {
-            -90..=-46 => {
-                prob_left_arr.push(1.);
-                prob_right_arr.push(0.);
-            }
-            -45..=-1 => {
-                prob_left_arr.push((-angle as f32)/45.);
-                prob_right_arr.push(0.);
-            }
-            0 => {
-                prob_left_arr.push(0.);
-                prob_right_arr.push(0.);
-            }
-            1..=45 => {
-                prob_left_arr.push(0.);
-                prob_right_arr.push((angle as f32)/45.);
-            }
-            46..=90 => {
-                prob_left_arr.push(0.);
-                prob_right_arr.push(1.);
-            }
-            _ => panic!("Angle out of bounds when generating probability distributions!")
-        }
+    for _ in 0..iterations as usize {
+        x = rng.next();
+        sum += x;
     }
 
-    for i in 0..prob_arr.len() {
-        prob_arr[i] *= 1./prob_arr_sum
-    } 
+    let new_now = Instant::now();
+    println!("Done! Took {:?}", new_now.duration_since(now));
 
-    let mut prob_arr_sorted = prob_arr.clone();
-    prob_arr_sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
-
-    Ok(())
-}
-
-pub fn run(length: u32, angle: u32, seed: u32, impurity: u32) {
-    println!(r"Running simulation for:
-    length = {}, angle = {}, seed = {}, impurity = {}...
-    ", length, angle, seed, impurity);
-
-
+    // Gross error check: expect a mean value of ~0.5 for this normal distribution
+    let avg: f64 = sum / iterations as f64;
+    println!("Mean of the random numbers generated is: {}", avg);
 }
