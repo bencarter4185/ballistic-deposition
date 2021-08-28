@@ -9,3 +9,5 @@ edition = "2018"
 phf = { version = "0.10.0", features = ["macros"] }
 configparser = "2.1.0"
 itertools = "0.10.1"
+rayon = "1.5.1"
+num = "0.4.0"
