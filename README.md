@@ -39,5 +39,6 @@ The project is hosted on GitHub under an MIT License. Please see the license fil
 - Get a working simulation running and tested for L = something small
 - Successfully export simulation data to .csv files, where filenames are generated from the input params
 - Write some Python code (in this repo) to analyse the generated data, likely Jupyter Notebooks
+- Write a more complete handling of errors, such as if an invalid substrate length is selected
 - Investigate/write a Python wrapper to run simulations in Rust and analyse the data(?)
 - Write a more complete `Theory` section rather than just having a link to a paper

@@ -5,7 +5,7 @@ use std::error::Error;
 
 #[derive(Debug)]
 pub struct InputParams {
-    pub lengths: Vec<u32>,
+    pub lengths_t_max: Vec<(u32, u32)>,
     pub k_neighbours: Vec<u32>,
     pub seeds: Vec<u32>,
     pub periodic_bc: bool,
@@ -16,31 +16,33 @@ impl InputParams {
     pub fn new() -> InputParams {
         // Instantiate our parameters for the simulation
         let config = open_config().expect("Failed to open `config.ini`.");
-
+        
         let lengths: Vec<u32> =
             parse_config_array(&config, "simulation_params", "substrate_lengths")
-                .expect("Failed to parse substrate lengths.");
+            .expect("Failed to parse substrate lengths.");
+        let lengths_t_max = gen_lengths_t_max(&lengths);
+        
         let k_neighbours: Vec<u32> =
-            parse_config_array(&config, "simulation_params", "k_neighbours")
-                .expect("Failed to parse number of nearest neighbours.");
+        parse_config_array(&config, "simulation_params", "k_neighbours")
+        .expect("Failed to parse number of nearest neighbours.");
         let seeds: Vec<u32> =
-            parse_config_array(&config, "simulation_params", "seeds")
-                .expect("Failed to parse number of seeds.");
+        parse_config_array(&config, "simulation_params", "seeds")
+        .expect("Failed to parse number of seeds.");
         let periodic_bc: bool = 
-            parse_config_option(&config, "options", "periodic_bc")
-                .expect("Failed to parse whether to apply periodic boundary conditions.");
+        parse_config_option(&config, "options", "periodic_bc")
+        .expect("Failed to parse whether to apply periodic boundary conditions.");
         let init_seed: u32 = 
-            parse_config_u32(&config, "options", "init_seed")
-                .expect("Failed to parse initial random number seed.");
-
+        parse_config_u32(&config, "options", "init_seed")
+        .expect("Failed to parse initial random number seed.");
+        
         let params: InputParams = InputParams {
-            lengths: lengths,
+            lengths_t_max: lengths_t_max,
             k_neighbours: k_neighbours,
             seeds: seeds,
             periodic_bc: periodic_bc,
             init_seed: init_seed,
         };
-
+        
         params
     }
 }
@@ -119,4 +121,33 @@ pub fn parse_config_u32 (
     
     let val: u32 = config_entry.parse().unwrap();
     Ok(val)
+}
+
+fn gen_lengths_t_max (lengths: &Vec<u32>) -> Vec<(u32, u32)> {
+    // Only supports powers of 2 from 8 to 4096 at the moment
+    // TODO: include support for different substrate lengths?
+
+    // Create an empty vector for zipping together length and t_max
+    let mut lengths_with_t_max: Vec<(u32, u32)> = Vec::new(); // vec![(0, 0); lengths.len()];
+    
+    for length in lengths {
+        let t_max: u32 = match *length {
+            8 => 10_000,
+            16 => 10_000,
+            32 => 10_000,
+            64 => 10_000,
+            128 => 10_000,
+            256 => 10_000,
+            512 => 10_000,
+            1024 => 100_000,
+            2048 => 100_000,
+            4096 => 100_000,
+            // If length isn't one of the hard-coded values, panic and tell the user
+            _ => {
+                panic!("Error: {length} isn't a valid substrate length! Please supply a power of 2 from 8 to 4096 inclusive.", length = *length);
+            }
+        };
+        lengths_with_t_max.push((*length, t_max));
+    }
+    lengths_with_t_max
 }

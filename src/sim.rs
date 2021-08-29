@@ -3,7 +3,6 @@ Library file used for running the ballistic deposition simulations.
 */
 
 use num::{FromPrimitive, ToPrimitive};
-use phf::phf_map;
 
 use std::iter::Sum;
 use std::time::Instant;
@@ -20,7 +19,7 @@ Structs
 // Struct containing all the parameters to be used 
 #[derive(Debug)]
 pub struct SimulationParams {
-    length: u32,
+    length_t_max: (u32, u32),
     k_neighbour: u32,
     max_seed: u32,
     periodic_bc: bool,
@@ -28,9 +27,9 @@ pub struct SimulationParams {
 }
 
 impl SimulationParams {
-    pub fn new(total_params: InputParams, length: u32, k_neighbour: u32, max_seed: u32) -> SimulationParams {
+    pub fn new(total_params: InputParams, length_t_max: (u32, u32), k_neighbour: u32, max_seed: u32) -> SimulationParams {
         let current_params: SimulationParams = SimulationParams {
-            length: length,
+            length_t_max: length_t_max,
             k_neighbour: k_neighbour,
             max_seed: max_seed,
             periodic_bc: total_params.periodic_bc,
@@ -40,22 +39,6 @@ impl SimulationParams {
     }
 }
 
-/*
-Statics
-*/
-// Map the maximum value of `t` for each substrate length `L`
-pub static _T_MAX: phf::Map<&'static str, u32> = phf_map! {
-    "8" => 10_000,
-    "16" => 10_000,
-    "32" => 10_000,
-    "64" => 10_000,
-    "128" => 10_000,
-    "256" => 10_000,
-    "512" => 10_000,
-    "1024" => 100_000,
-    "2048" => 100_000,
-    "4096" => 100_000,
-};
 
 /*
 Functions
@@ -133,17 +116,32 @@ where
     }
 }
 
+
+// pub struct SimulationParams {
+//     length_t_max: (u32, u32),
+//     k_neighbour: u32,
+//     max_seed: u32,
+//     periodic_bc: bool,
+//     init_seed: u32,
+// }
+
 pub fn run(params: SimulationParams) {
+    // Unpack struct of params
+    let (length, _t_max) = params.length_t_max;
+    let k_neighbour = params.k_neighbour;
+    let max_seed = params.max_seed;
+    let _periodic_bc = params.periodic_bc;
+    let _init_seed = params.init_seed;
+    
     println!(
         r"Running simulation for
         Substrate Length = {}, Nearest Neighbours = {}, Max Seed = {}...",
-        params.length, params.k_neighbour, params.max_seed
+        length, k_neighbour, max_seed
     );
 
-    let _idum: i32 = 0;
-    let _rand_period: f64 = 1000000000000000000.;
-
-
+    // Set current time and counter of total time points
+    let _t: f64 = 0.0;
+    let _t_points: i32 = 0;
 
 
     /*

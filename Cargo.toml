@@ -6,8 +6,7 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-phf = { version = "0.10.0", features = ["macros"] }
 configparser = "2.1.0"
 itertools = "0.10.1"
-rayon = "1.5.1"
+# rayon = "1.5.1" I may need it later but not using it for now
 num = "0.4.0"
