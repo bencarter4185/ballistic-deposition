@@ -142,6 +142,8 @@ fn gen_lengths_t_max (lengths: &Vec<i32>) -> Vec<(i32, i32)> {
             1024 => 100_000,
             2048 => 100_000,
             4096 => 100_000,
+            8192 => 1_000_000, // test
+
             // If length isn't one of the hard-coded values, panic and tell the user
             _ => {
                 panic!("Error: {length} isn't a valid substrate length! Please supply a power of 2 from 8 to 4096 inclusive.", length = *length);
