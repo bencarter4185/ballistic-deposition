@@ -5,11 +5,11 @@ use std::error::Error;
 
 #[derive(Debug)]
 pub struct InputParams {
-    pub lengths_t_max: Vec<(u32, u32)>,
-    pub k_neighbours: Vec<u32>,
-    pub seeds: Vec<u32>,
+    pub lengths_t_max: Vec<(i32, i32)>,
+    pub k_neighbours: Vec<i32>,
+    pub seeds: Vec<i32>,
     pub periodic_bc: bool,
-    pub init_seed: u32,
+    pub init_seed: i32,
 }
 
 impl InputParams {
@@ -17,22 +17,22 @@ impl InputParams {
         // Instantiate our parameters for the simulation
         let config = open_config().expect("Failed to open `config.ini`.");
         
-        let lengths: Vec<u32> =
+        let lengths: Vec<i32> =
             parse_config_array(&config, "simulation_params", "substrate_lengths")
             .expect("Failed to parse substrate lengths.");
         let lengths_t_max = gen_lengths_t_max(&lengths);
         
-        let k_neighbours: Vec<u32> =
+        let k_neighbours: Vec<i32> =
         parse_config_array(&config, "simulation_params", "k_neighbours")
         .expect("Failed to parse number of nearest neighbours.");
-        let seeds: Vec<u32> =
+        let seeds: Vec<i32> =
         parse_config_array(&config, "simulation_params", "seeds")
         .expect("Failed to parse number of seeds.");
         let periodic_bc: bool = 
         parse_config_option(&config, "options", "periodic_bc")
         .expect("Failed to parse whether to apply periodic boundary conditions.");
-        let init_seed: u32 = 
-        parse_config_u32(&config, "options", "init_seed")
+        let init_seed: i32 = 
+        parse_config_i32(&config, "options", "init_seed")
         .expect("Failed to parse initial random number seed.");
         
         let params: InputParams = InputParams {
@@ -59,18 +59,18 @@ pub fn parse_config_array (
     config: &Ini,
     section: &str,
     key: &str,
-) -> Result<Vec<u32>, Box<dyn Error>> {
+) -> Result<Vec<i32>, Box<dyn Error>> {
     // Parse the config.ini file for its specified key value pair.
     // This code works for parsing a vector of values only.
     let config_entry = &config
         .get(section, key)
         .expect("Invalid section/key pair in `config.ini`.")[..]; // Convert to string literal
 
-    let mut vals: Vec<u32> = vec![];
+    let mut vals: Vec<i32> = Vec::new();
 
     let values = config_entry.split(',');
     for v in values {
-        let temp: u32 = v.trim().parse().unwrap_or(0);
+        let temp: i32 = v.trim().parse().unwrap_or(0);
         vals.push(temp);
     }
 
@@ -108,30 +108,30 @@ pub fn parse_config_option (
     Ok(val)
 }
 
-pub fn parse_config_u32 (
+pub fn parse_config_i32 (
     config: &Ini,
     section: &str,
     key: &str,
-) -> Result<u32, Box<dyn Error>> {
+) -> Result<i32, Box<dyn Error>> {
     // Parse the config.ini file for its specified key value pair.
-    // This code works for parsing u32 values only.
+    // This code works for parsing i32 values only.
     let config_entry = &config
         .get(section, key)
         .expect("Invalid section/key pair in config.ini.")[..]; // convert to string literal &str
     
-    let val: u32 = config_entry.parse().unwrap();
+    let val: i32 = config_entry.parse().unwrap();
     Ok(val)
 }
 
-fn gen_lengths_t_max (lengths: &Vec<u32>) -> Vec<(u32, u32)> {
+fn gen_lengths_t_max (lengths: &Vec<i32>) -> Vec<(i32, i32)> {
     // Only supports powers of 2 from 8 to 4096 at the moment
     // TODO: include support for different substrate lengths?
 
     // Create an empty vector for zipping together length and t_max
-    let mut lengths_with_t_max: Vec<(u32, u32)> = Vec::new(); // vec![(0, 0); lengths.len()];
+    let mut lengths_with_t_max: Vec<(i32, i32)> = Vec::new(); // vec![(0, 0); lengths.len()];
     
     for length in lengths {
-        let t_max: u32 = match *length {
+        let t_max: i32 = match *length {
             8 => 10_000,
             16 => 10_000,
             32 => 10_000,

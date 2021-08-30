@@ -2,32 +2,44 @@
 Library file used for running the ballistic deposition simulations.
 */
 
+use ndarray::{Array3, s};
+
 use num::{FromPrimitive, ToPrimitive};
 
 use std::iter::Sum;
-use std::time::Instant;
+use std::error::Error;
 
 mod random;
 use random::Ran2Generator;
 
+mod csv_writer;
+use csv_writer::write_csv;
+
 use crate::ini_parser::InputParams;
+
+use rayon::prelude::*;
 
 /*
 Structs
 */
 
-// Struct containing all the parameters to be used 
+// Struct containing all the parameters to be used
 #[derive(Debug)]
 pub struct SimulationParams {
-    length_t_max: (u32, u32),
-    k_neighbour: u32,
-    max_seed: u32,
+    length_t_max: (i32, i32),
+    k_neighbour: i32,
+    max_seed: i32,
     periodic_bc: bool,
-    init_seed: u32,
+    init_seed: i32,
 }
 
 impl SimulationParams {
-    pub fn new(total_params: InputParams, length_t_max: (u32, u32), k_neighbour: u32, max_seed: u32) -> SimulationParams {
+    pub fn new(
+        total_params: InputParams,
+        length_t_max: (i32, i32),
+        k_neighbour: i32,
+        max_seed: i32,
+    ) -> SimulationParams {
         let current_params: SimulationParams = SimulationParams {
             length_t_max: length_t_max,
             k_neighbour: k_neighbour,
@@ -36,6 +48,25 @@ impl SimulationParams {
             init_seed: total_params.init_seed,
         };
         current_params
+    }
+}
+
+// Struct containing results
+pub struct SimulationResults {
+    avg_v_out: Vec<f64>,
+    avg_h_out: Vec<f64>,
+    t_out: Vec<f64>,
+}
+
+impl SimulationResults {
+    pub fn new(t_points: usize) -> SimulationResults {
+        let results = SimulationResults {
+            avg_v_out: vec![0.0; t_points],
+            avg_h_out: vec![0.0; t_points],
+            t_out: vec![0.0; t_points],
+        };
+
+        results
     }
 }
 
@@ -95,91 +126,186 @@ where
     }
 }
 
-fn variance<'a, T: 'a>(numbers: &'a [T]) -> Option<f64>
+fn _mean_par<'a, T: 'a + Send + Sync>(numbers: &'a [T]) -> Option<f64>
 where
-    T: ToPrimitive + Sum<&'a T>,
+    T: ToPrimitive + Sum<&'a T> + Sum,
 {
-    match (mean(numbers), numbers.len()) {
-        (Some(mean_val), count) if count > 0 => {
-            let variance = numbers
-                .iter()
-                .map(|value| {
-                    let value = T::to_f64(&value).unwrap();
-                    let diff = mean_val - value;
-                    diff * diff
-                })
-                .sum::<f64>()
-                / count as f64;
-            Some(variance)
+    match numbers.len() {
+        positive if positive > 0 => {
+            // Sum the generics, convert the length of array to a float
+            let sum = numbers.par_iter().sum::<T>();
+            let length = f64::from_usize(numbers.len())?;
+            // Cast the sum as f64 and return the mean
+            T::to_f64(&sum).map(|sum| sum / length)
         }
         _ => None,
     }
 }
 
+fn std_dev<'a, T: 'a>(numbers: &'a [T]) -> Option<f64>
+where
+    T: ToPrimitive + Sum<&'a T>,
+{
+    match (mean(numbers), numbers.len()) {
+        (Some(mean_val), count) if count > 0 => {
+            let dev = numbers
+                .iter()
+                .map(|value| {
+                    let value = T::to_f64(&value).unwrap();
+                    let diff = mean_val - value;
+                    diff * diff
+                }).sum::<f64>() / count as f64;
+            Some(dev.sqrt())
+        }
+        _ => None,
+    }
+}
 
-// pub struct SimulationParams {
-//     length_t_max: (u32, u32),
-//     k_neighbour: u32,
-//     max_seed: u32,
-//     periodic_bc: bool,
-//     init_seed: u32,
-// }
+fn deposit_blocks(
+    n: u32,
+    l: i32,
+    s: &mut Vec<u32>,
+    rng: &mut Ran2Generator,
+    k_neighbour: i32,
+    periodic_bc: bool,
+) {
+    let mut j: i32; // column number
 
-pub fn run(params: SimulationParams) {
+    // k-neighbour sticking
+    let mut h_max: u32;
+    let mut k: i32;
+
+    for _ in 0..n {
+        loop {
+            // Generate a new random column
+            j = (l as f64 * rng.next()) as i32;
+            if j != l {
+                break;
+            }
+        }
+        h_max = s[j as usize] + 1; // initialize h_max to column j
+        k = 0; // reset counter
+
+        // instantiate temp variables
+        let mut a_temp: usize;
+        let mut a: u32;
+        let mut b: u32;
+        let mut c_temp: usize;
+        let mut c: u32;
+
+        // find maximum height of all the neighbour columns and column j
+        while k <= k_neighbour {
+            if periodic_bc == true {
+                a_temp = if j - k < 0 {
+                    (l + ((j - k) % l)) as usize
+                } else {
+                    (j - k) as usize
+                };
+                a = s[a_temp];
+                b = h_max;
+                c_temp = ((j + k) % l) as usize;
+                c = s[c_temp];
+
+                h_max = max3(a, b, c);
+            } else {
+                a_temp = max(j - k, 0) as usize;
+                a = s[a_temp];
+                b = h_max;
+                c_temp = min(j + k, l - 1) as usize;
+                c = s[c_temp];
+
+                h_max = max3(a, b, c);
+            }
+            // increment k
+            k += 1;
+        }
+        // set column j to new height
+        s[j as usize] = h_max;
+    }
+}
+
+pub fn run(params: SimulationParams) -> Result<(), Box<dyn Error>> {
     // Unpack struct of params
-    let (length, _t_max) = params.length_t_max;
+    let (l, t_max) = params.length_t_max;
     let k_neighbour = params.k_neighbour;
     let max_seed = params.max_seed;
-    let _periodic_bc = params.periodic_bc;
-    let _init_seed = params.init_seed;
-    
+    let periodic_bc = params.periodic_bc;
+    let init_seed = params.init_seed;
+
     println!(
         r"Running simulation for
-        Substrate Length = {}, Nearest Neighbours = {}, Max Seed = {}...",
-        length, k_neighbour, max_seed
+        Substrate Length = {}, Nearest Neighbours = {}, Max Seed = {},
+        Periodic Boundary Conditions = {}, Initial Seed = {}...",
+        l, k_neighbour, max_seed, periodic_bc, init_seed
     );
 
     // Set current time and counter of total time points
-    let _t: f64 = 0.0;
-    let _t_points: i32 = 0;
-
-
-    /*
-    Placeholder code to test the added functions
-    */
-
-    dbg!(&params);
-
-    let a = 2; let b = 3; let c = 4;
-    println!("The max value of {} and {} is {}", a, b, max(a, b));
-    println!("The min value of {} and {} is {}", a, b, min(a, b));
-    println!("The max value of {}, {}, and {} is {}", a, b, c, max3(a, b, c));
-    
-    let some_array = [3, 1, 6, 1, 5, 8, 1, 8, 10, 11];
-    println!("The mean of the array is: {:?}", mean(&some_array).unwrap());
-    println!("The variance of the array is: {:?}", variance(&some_array).unwrap());
-
-
-    let iterations: u16 = u16::MAX;
-
-    let now = Instant::now();
-    println!("Generating {} random numbers...", iterations);
-
-    let mut x: f64;
-    let mut sum: f64 = 0.0;
-    let mut rng: Ran2Generator = Ran2Generator::new();
-
-    for _ in 0..iterations as usize {
-        x = rng.next();
-        sum += x;
+    let mut t: f64 = 0.0;
+    let mut t_points: usize = 0;
+    while t < t_max as f64 {
+        // Perform a logarithmic timestep
+        let mut n: u32 = (t * l as f64 / 100.0 + 1.0) as u32;
+        if n == 1 {
+            n = l as u32
+        }
+        t += n as f64 / l as f64;
+        // println!("{}", t); // turn on for debugging as necessary
+        t_points += 1;
     }
 
-    let new_now = Instant::now();
-    println!("Done! Took {:?}", new_now.duration_since(now));
+    // 3d array to hold the data which will then be exported to .csv
+    // accum. ensemble data, [0=variance,1=h_avg,2=t/L]
+    let mut data: Array3<f64> = Array3::zeros(((t_points + 1) as usize, 3, max_seed as usize));
 
-    // Gross error check: expect a mean value of ~0.5 for this normal distribution
-    let avg: f64 = sum / iterations as f64;
-    println!("Mean of the random numbers generated is: {}", avg);
+    // Iterate through every ensemble
+    for seed in 0..max_seed {
+        // println!("Ens. Nr. {}", seed); // Enable for debugging
 
-    println!("");
+        let mut h: f64; // average height
+        let mut v: f64; // interface width
+
+        // Initialise random seed, based on the current system
+        let idum: i32 = -1 * (l + init_seed + seed).abs();
+
+        // Instantiate a new random number generator with given initial seed
+        let mut rng: Ran2Generator = Ran2Generator::new(idum);
+        
+        // Declare surface array
+        let mut s: Vec<u32> = vec![0; l as usize];
+
+        // Define some counting variables
+        let mut i: usize = 0; // Counter for ensemble data array
+        let mut n: u32; // Number of particles to be dropped next
+        t = 0.0;
+
+        while t < t_max as f64 {
+            n = (t * l as f64 / 100.0 + 1.0) as u32; // Number of particles to drop next (log timescale)
+            if n == 1 {
+                n = l as u32
+            }
+            // Deposit n particles on surface s
+            deposit_blocks(n, l, &mut s, &mut rng, k_neighbour, periodic_bc);
+            t += n as f64/l as f64;
+            h = mean(&s).unwrap();
+            v = std_dev(&s).unwrap();
+            data[[i, 0, seed as usize]] = v;
+            data[[i, 1, seed as usize]] = h;
+            data[[i, 2, 0]] = t;
+            i+=1;
+        }
+    }
+
+    // Done depositing. Now calculate ensemble averages and save to file
+    let mut results = SimulationResults::new(t_points);
+
+    for i in 0..t_points {
+        results.avg_v_out[i] = mean(&data.slice(s![i, 0, ..]).to_vec()).unwrap();
+        results.avg_h_out[i] = mean(&data.slice(s![i, 1, ..]).to_vec()).unwrap();
+        results.t_out[i] = data[[i,2,0]];
+    }
+
+    // Now need to write these results to a csv file
+    write_csv(&params, &results, t_points)?;
+
+    Ok(())
 }

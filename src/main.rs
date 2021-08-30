@@ -13,6 +13,8 @@ use sim::SimulationParams;
 
 use std::error::Error;
 
+use std::time::Instant;
+
 
 #[macro_use]
 extern crate itertools;
@@ -32,7 +34,10 @@ fn main() -> Result<(), Box<dyn Error>> {
         let current_params: SimulationParams =
             SimulationParams::new(params, lengths_t_max, k_neighbour, max_seed);
         
-            sim::run(current_params);
+            let now = Instant::now();
+            sim::run(current_params)?;
+            let new_now = Instant::now();
+            println!("Done! Took {:?}", new_now.duration_since(now));
     }
 
     Ok(())

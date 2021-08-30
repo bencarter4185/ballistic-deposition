@@ -23,6 +23,7 @@ const NDIV: i32 = 1 + IMM1 / NTAB;
 const EPS: f64 = 1.2e-7;
 const RNMX: f64 = 1.0 - EPS;
 
+#[derive(Clone)]
 pub struct Ran2Generator {
     idum: i32,
     idum2: i32,
@@ -31,10 +32,10 @@ pub struct Ran2Generator {
 }
 
 impl Ran2Generator {
-    pub fn new() -> Ran2Generator {
+    pub fn new(idum: i32) -> Ran2Generator {
         // Instantiate our parameters for ran2()
         let params: Ran2Generator = Ran2Generator {
-            idum: -5,
+            idum: idum,
             idum2: 123456789,
             iy: 0,
             iv: [0; NTAB as usize],
