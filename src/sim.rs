@@ -3,8 +3,8 @@ Library file used for running the ballistic deposition simulations.
 */
 use num::{FromPrimitive, ToPrimitive};
 
-use std::iter::Sum;
 use std::error::Error;
+use std::iter::Sum;
 
 mod random;
 use random::Ran2Generator;
@@ -106,22 +106,24 @@ fn max3<T: Ord>(a: T, b: T, c: T) -> T {
     }
 }
 
-fn mean<'a, T: 'a>(numbers: &'a [T]) -> Option<f64>
+fn mean<'a, T: 'a>(numbers: &'a [T], length: usize) -> Option<f64>
 where
     T: ToPrimitive + Sum<&'a T>,
 {
-    match numbers.len() {
+    match length {
         positive if positive > 0 => {
             // Sum the generics, convert the length of array to a float
             let sum = numbers.iter().sum::<T>();
-            let length = f64::from_usize(numbers.len())?;
+            let length_f64 = f64::from_usize(length)?;
             // Cast the sum as f64 and return the mean
-            T::to_f64(&sum).map(|sum| sum / length)
+            T::to_f64(&sum).map(|sum| sum / length_f64)
         }
         _ => None,
     }
 }
 
+// May delete this later. Will require further testing but my hunch is
+//  that parallelisation is pointless here as the overheads are too great
 fn _mean_par<'a, T: 'a + Send + Sync>(numbers: &'a [T]) -> Option<f64>
 where
     T: ToPrimitive + Sum<&'a T> + Sum,
@@ -138,11 +140,11 @@ where
     }
 }
 
-fn std_dev<'a, T: 'a>(numbers: &'a [T]) -> Option<f64>
+fn std_dev<'a, T: 'a>(numbers: &'a [T], length: usize) -> Option<f64>
 where
     T: ToPrimitive + Sum<&'a T>,
 {
-    match (mean(numbers), numbers.len()) {
+    match (mean(numbers, length), length) {
         (Some(mean_val), count) if count > 0 => {
             let dev = numbers
                 .iter()
@@ -232,29 +234,35 @@ pub fn do_sim(
     // Instantiate a new random number generator with given initial seed
     let mut rng: Ran2Generator = Ran2Generator::new(idum);
 
+    // Define separate variable for the length of surface as usize
+    let s_len: usize = l as usize;
+
     // Declare surface array
-    let mut s: Vec<u32> = vec![0; l as usize];
+    let mut s: Vec<u32> = vec![0; s_len];
 
     // Define some counting variables
     let mut i: usize = 0; // Counter for ensemble data array
     let mut n: u32; // Number of particles to be dropped next
     let mut t: f64 = 0.0;
 
+    // Define vectors to store caluclated values
     let mut v_out: Vec<f64> = vec![0.0; t_points];
     let mut h_out: Vec<f64> = vec![0.0; t_points];
     let mut t_out: Vec<f64> = vec![0.0; t_points];
 
+    // For each time-point in our logarithmic timescale
     while t < t_max as f64 {
-        n = (t * l as f64 / 100.0 + 1.0) as u32; // Number of particles to drop next (log timescale)
+        n = (t * l as f64 / 100.0 + 1.0) as u32; // Number of particles to drop next
         if n == 1 {
             n = l as u32
         }
         // Deposit n particles on surface s
         deposit_blocks(n, l, &mut s, &mut rng, k_neighbour, periodic_bc);
+        h = mean(&s, s_len).unwrap();
+        v = std_dev(&s, s_len).unwrap();
         t += n as f64 / l as f64;
-        h = mean(&s).unwrap();
-        v = std_dev(&s).unwrap();
 
+        // Save calculated values for this time point to the vectors
         v_out[i] = v;
         h_out[i] = h;
         t_out[i] = t;
@@ -296,7 +304,7 @@ pub fn run(params: SimulationParams) -> Result<(), Box<dyn Error>> {
     // Generate vector through which to iterate seeds
     let seeds: Vec<i32> = (0..max_seed).collect();
 
-    // Iterate through seeds in parallel
+    // Iterate through seeds in parallel and run the ballistic deposition simulation
     let data: Vec<(Vec<f64>, Vec<f64>, Vec<f64>)> = seeds
         .par_iter()
         .map(|seed| {
@@ -305,20 +313,24 @@ pub fn run(params: SimulationParams) -> Result<(), Box<dyn Error>> {
         })
         .collect();
 
+    // Done depositing. Now calculate ensemble averages and save to file
+
     // Generate vectors to store outgoing data
     let mut v_avg: Vec<f64> = vec![0.0; t_points];
     let mut h_avg: Vec<f64> = vec![0.0; t_points];
     let mut t_avg: Vec<f64> = vec![0.0; t_points];
 
+    // Average v and h across the ensemble
     for (i, j) in iproduct!(0..max_seed as usize, 0..t_points) {
         v_avg[j] += &data[i].0[j] / max_seed as f64;
         h_avg[j] += &data[i].1[j] / max_seed as f64;
-        if i == 0 {
-            t_avg[j] += &data[i].2[j];
-        }
     }
 
-    // Done depositing. Now calculate ensemble averages and save to file
+    // Don't need to average time, so can do it in its own loop
+    for j in 0..t_points {
+        t_avg[j] += &data[0].2[j];
+    }
+
     let results = SimulationResults::new(v_avg, h_avg, t_avg);
 
     // Now need to write these results to a csv file
