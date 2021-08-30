@@ -142,7 +142,8 @@ fn gen_lengths_t_max (lengths: &Vec<i32>) -> Vec<(i32, i32)> {
             1024 => 100_000,
             2048 => 100_000,
             4096 => 100_000,
-            8192 => 1_000_000, // test
+            8192 => 1_000_000,
+            16384 => 1_000_000,
 
             // If length isn't one of the hard-coded values, panic and tell the user
             _ => {
