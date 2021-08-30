@@ -1,9 +1,6 @@
 /*
 Library file used for running the ballistic deposition simulations.
 */
-
-use ndarray::{Array3, s};
-
 use num::{FromPrimitive, ToPrimitive};
 
 use std::iter::Sum;
@@ -59,17 +56,16 @@ pub struct SimulationResults {
 }
 
 impl SimulationResults {
-    pub fn new(t_points: usize) -> SimulationResults {
+    pub fn new(v_out: Vec<f64>, h_out: Vec<f64>, t_out: Vec<f64>) -> SimulationResults {
         let results = SimulationResults {
-            avg_v_out: vec![0.0; t_points],
-            avg_h_out: vec![0.0; t_points],
-            t_out: vec![0.0; t_points],
+            avg_v_out: v_out,
+            avg_h_out: h_out,
+            t_out: t_out,
         };
 
         results
     }
 }
-
 
 /*
 Functions
@@ -154,7 +150,9 @@ where
                     let value = T::to_f64(&value).unwrap();
                     let diff = mean_val - value;
                     diff * diff
-                }).sum::<f64>() / count as f64;
+                })
+                .sum::<f64>()
+                / count as f64;
             Some(dev.sqrt())
         }
         _ => None,
@@ -224,6 +222,60 @@ fn deposit_blocks(
     }
 }
 
+pub fn do_sim (
+    params: &SimulationParams,
+    seed: i32,
+    t_points: usize
+) -> (Vec<f64>, Vec<f64>, Vec<f64>) {
+    // Unpack struct of params
+    let (l, t_max) = params.length_t_max;
+    let k_neighbour = params.k_neighbour;
+    let _ = params.max_seed;
+    let periodic_bc = params.periodic_bc;
+    let init_seed = params.init_seed;
+
+    let mut h: f64; // average height
+    let mut v: f64; // interface width
+
+    // Initialise random seed, based on the current system
+    let idum: i32 = -1 * (l + init_seed + seed).abs();
+
+    // Instantiate a new random number generator with given initial seed
+    let mut rng: Ran2Generator = Ran2Generator::new(idum);
+
+    // Declare surface array
+    let mut s: Vec<u32> = vec![0; l as usize];
+
+    // Define some counting variables
+    let mut i: usize = 0; // Counter for ensemble data array
+    let mut n: u32; // Number of particles to be dropped next
+    let mut t: f64 = 0.0;
+
+    let mut v_out: Vec<f64> = vec![0.0; t_points];
+    let mut h_out: Vec<f64> = vec![0.0; t_points];
+    let mut t_out: Vec<f64> = vec![0.0; t_points];
+
+
+    while t < t_max as f64 {
+        n = (t * l as f64 / 100.0 + 1.0) as u32; // Number of particles to drop next (log timescale)
+        if n == 1 {
+            n = l as u32
+        }
+        // Deposit n particles on surface s
+        deposit_blocks(n, l, &mut s, &mut rng, k_neighbour, periodic_bc);
+        t += n as f64 / l as f64;
+        h = mean(&s).unwrap();
+        v = std_dev(&s).unwrap();
+
+        v_out[i] = v;
+        h_out[i] = h;
+        t_out[i] = t;
+
+        i += 1;
+    }
+    (v_out, h_out, t_out)
+}
+
 pub fn run(params: SimulationParams) -> Result<(), Box<dyn Error>> {
     // Unpack struct of params
     let (l, t_max) = params.length_t_max;
@@ -253,56 +305,30 @@ pub fn run(params: SimulationParams) -> Result<(), Box<dyn Error>> {
         t_points += 1;
     }
 
-    // 3d array to hold the data which will then be exported to .csv
-    // accum. ensemble data, [0=variance,1=h_avg,2=t/L]
-    let mut data: Array3<f64> = Array3::zeros(((t_points + 1) as usize, 3, max_seed as usize));
+    // Generate vector through which to iterate seeds
+    let seeds: Vec<i32> = (0..max_seed).collect();
 
-    // Iterate through every ensemble
-    for seed in 0..max_seed {
-        // println!("Ens. Nr. {}", seed); // Enable for debugging
+    // Iterate through seeds in parallel
+    let data: Vec<(Vec<f64>, Vec<f64>, Vec<f64>)> = seeds.par_iter().map(|seed| {
+        let (v, h, t) = do_sim(&params, *seed, t_points);
+        (v, h, t)
+    }).collect();
 
-        let mut h: f64; // average height
-        let mut v: f64; // interface width
+    // Generate vectors to store outgoing data
+    let mut v_avg: Vec<f64> = vec![0.0; t_points];
+    let mut h_avg: Vec<f64> = vec![0.0; t_points];
+    let mut t_avg: Vec<f64> = vec![0.0; t_points];
 
-        // Initialise random seed, based on the current system
-        let idum: i32 = -1 * (l + init_seed + seed).abs();
-
-        // Instantiate a new random number generator with given initial seed
-        let mut rng: Ran2Generator = Ran2Generator::new(idum);
-        
-        // Declare surface array
-        let mut s: Vec<u32> = vec![0; l as usize];
-
-        // Define some counting variables
-        let mut i: usize = 0; // Counter for ensemble data array
-        let mut n: u32; // Number of particles to be dropped next
-        t = 0.0;
-
-        while t < t_max as f64 {
-            n = (t * l as f64 / 100.0 + 1.0) as u32; // Number of particles to drop next (log timescale)
-            if n == 1 {
-                n = l as u32
-            }
-            // Deposit n particles on surface s
-            deposit_blocks(n, l, &mut s, &mut rng, k_neighbour, periodic_bc);
-            t += n as f64/l as f64;
-            h = mean(&s).unwrap();
-            v = std_dev(&s).unwrap();
-            data[[i, 0, seed as usize]] = v;
-            data[[i, 1, seed as usize]] = h;
-            data[[i, 2, 0]] = t;
-            i+=1;
+    for (i, j) in iproduct!(0..max_seed as usize, 0..t_points) {
+        v_avg[j] += &data[i].0[j] / max_seed as f64;
+        h_avg[j] += &data[i].1[j] / max_seed as f64;
+        if i == 0 {
+            t_avg[j] += &data[i].2[j];
         }
     }
 
     // Done depositing. Now calculate ensemble averages and save to file
-    let mut results = SimulationResults::new(t_points);
-
-    for i in 0..t_points {
-        results.avg_v_out[i] = mean(&data.slice(s![i, 0, ..]).to_vec()).unwrap();
-        results.avg_h_out[i] = mean(&data.slice(s![i, 1, ..]).to_vec()).unwrap();
-        results.t_out[i] = data[[i,2,0]];
-    }
+    let results = SimulationResults::new(v_avg, h_avg, t_avg);
 
     // Now need to write these results to a csv file
     write_csv(&params, &results, t_points)?;
