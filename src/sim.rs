@@ -184,35 +184,24 @@ fn deposit_blocks(
         h_max = s[j as usize] + 1; // initialize h_max to column j
         k = 0; // reset counter
 
-        // instantiate temp variables
-        let mut a_temp: usize;
-        let mut a: u32;
-        let mut b: u32;
-        let mut c_temp: usize;
-        let mut c: u32;
-
         // find maximum height of all the neighbour columns and column j
         while k <= k_neighbour {
             if periodic_bc == true {
-                a_temp = if j - k < 0 {
-                    (l + ((j - k) % l)) as usize
-                } else {
-                    (j - k) as usize
-                };
-                a = s[a_temp];
-                b = h_max;
-                c_temp = ((j + k) % l) as usize;
-                c = s[c_temp];
-
-                h_max = max3(a, b, c);
+                h_max = max3(
+                    s[if j - k < 0 {
+                        (l + ((j - k) % l)) as usize
+                    } else {
+                        (j - k) as usize
+                    }],
+                    h_max,
+                    s[((j + k) % l) as usize],
+                );
             } else {
-                a_temp = max(j - k, 0) as usize;
-                a = s[a_temp];
-                b = h_max;
-                c_temp = min(j + k, l - 1) as usize;
-                c = s[c_temp];
-
-                h_max = max3(a, b, c);
+                h_max = max3(
+                    s[max(j - k, 0) as usize],
+                    h_max,
+                    s[min(j + k, l - 1) as usize],
+                );
             }
             // increment k
             k += 1;
@@ -222,10 +211,10 @@ fn deposit_blocks(
     }
 }
 
-pub fn do_sim (
+pub fn do_sim(
     params: &SimulationParams,
     seed: i32,
-    t_points: usize
+    t_points: usize,
 ) -> (Vec<f64>, Vec<f64>, Vec<f64>) {
     // Unpack struct of params
     let (l, t_max) = params.length_t_max;
@@ -254,7 +243,6 @@ pub fn do_sim (
     let mut v_out: Vec<f64> = vec![0.0; t_points];
     let mut h_out: Vec<f64> = vec![0.0; t_points];
     let mut t_out: Vec<f64> = vec![0.0; t_points];
-
 
     while t < t_max as f64 {
         n = (t * l as f64 / 100.0 + 1.0) as u32; // Number of particles to drop next (log timescale)
@@ -309,10 +297,13 @@ pub fn run(params: SimulationParams) -> Result<(), Box<dyn Error>> {
     let seeds: Vec<i32> = (0..max_seed).collect();
 
     // Iterate through seeds in parallel
-    let data: Vec<(Vec<f64>, Vec<f64>, Vec<f64>)> = seeds.par_iter().map(|seed| {
-        let (v, h, t) = do_sim(&params, *seed, t_points);
-        (v, h, t)
-    }).collect();
+    let data: Vec<(Vec<f64>, Vec<f64>, Vec<f64>)> = seeds
+        .par_iter()
+        .map(|seed| {
+            let (v, h, t) = do_sim(&params, *seed, t_points);
+            (v, h, t)
+        })
+        .collect();
 
     // Generate vectors to store outgoing data
     let mut v_avg: Vec<f64> = vec![0.0; t_points];
