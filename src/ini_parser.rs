@@ -50,7 +50,7 @@ impl InputParams {
 pub fn open_config() -> Result<Ini, Box<dyn Error>> {
     // Open the `config.ini` file and extract the contents
     let mut config = Ini::new();
-    config.load("config.ini")?;
+    config.load("./config/config_sim.ini")?;
 
     Ok(config)
 }

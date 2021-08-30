@@ -162,9 +162,9 @@ where
 }
 
 fn deposit_blocks(
-    n: u32,
+    n: usize,
     l: i32,
-    s: &mut Vec<u32>,
+    s: &mut Vec<usize>,
     rng: &mut Ran2Generator,
     k_neighbour: i32,
     periodic_bc: bool,
@@ -172,7 +172,7 @@ fn deposit_blocks(
     let mut j: i32; // column number
 
     // k-neighbour sticking
-    let mut h_max: u32;
+    let mut h_max: usize;
     let mut k: i32;
 
     for _ in 0..n {
@@ -238,11 +238,11 @@ pub fn do_sim(
     let s_len: usize = l as usize;
 
     // Declare surface array
-    let mut s: Vec<u32> = vec![0; s_len];
+    let mut s: Vec<usize> = vec![0; s_len];
 
     // Define some counting variables
     let mut i: usize = 0; // Counter for ensemble data array
-    let mut n: u32; // Number of particles to be dropped next
+    let mut n: usize; // Number of particles to be dropped next
     let mut t: f64 = 0.0;
 
     // Define vectors to store caluclated values
@@ -252,9 +252,9 @@ pub fn do_sim(
 
     // For each time-point in our logarithmic timescale
     while t < t_max as f64 {
-        n = (t * l as f64 / 100.0 + 1.0) as u32; // Number of particles to drop next
+        n = (t * l as f64 / 100.0 + 1.0) as usize; // Number of particles to drop next
         if n == 1 {
-            n = l as u32
+            n = l as usize
         }
         // Deposit n particles on surface s
         deposit_blocks(n, l, &mut s, &mut rng, k_neighbour, periodic_bc);
