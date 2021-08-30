@@ -20,7 +20,7 @@ extern crate itertools;
 
 fn main() -> Result<(), Box<dyn Error>> {
     // Load the params in the .ini file
-    let params = InputParams::new();
+    let params = InputParams::new(true);
 
     // Iterate through parameters parsed in the `.ini` and run simulations
     for (lengths_t_max, k_neighbour, max_seed) in
@@ -28,7 +28,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     {
         // Re-parse the params so we're not trying to use a moved value every loop
         //  Wasteful? Probably. But insignificant compared to the runtime of the simulations
-        let params = InputParams::new();
+        let params = InputParams::new(false);
 
         let current_params: SimulationParams =
             SimulationParams::new(params, lengths_t_max, k_neighbour, max_seed);
