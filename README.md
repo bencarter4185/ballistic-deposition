@@ -13,7 +13,7 @@ This repo contains my current attempt at creating a ballistic deposition tool/pr
 
 ## Theory of Ballistic Deposition
 
-See [this paper by Meakin, Ramanlal, Sander, and Ball](https://sci-hub.st/10.1103/PhysRevA.34.5091) for a comprehensive introduction on the topic. Another excellent read on the topic is Dr. Arne Schwettmann's [Master's Thesis on Ballistic Deposition](https://digital.library.unt.edu/ark:/67531/metadc4392/m2/1/high_res_d/problieu). Arne's paper has also served as the foundation of the logic used within the simulations in this repo -- see [Acknowledgements](#acknowledgements).
+See [this paper by Meakin, Ramanlal, Sander, and Ball](https://sci-hub.st/10.1103/PhysRevA.34.5091) for a comprehensive introduction on the topic. Another excellent read on the topic is Dr. Arne Schwettmann's [Master's Thesis on Ballistic Deposition](https://digital.library.unt.edu/ark:/67531/metadc4392/m2/1/high_res_d/problieu.pdf). Arne's paper has also served as the foundation of the logic used within the simulations in this repo -- see [Acknowledgements](#acknowledgements).
 
 ## How to Use
 ### Parameters
