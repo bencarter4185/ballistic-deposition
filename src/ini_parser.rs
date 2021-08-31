@@ -152,7 +152,7 @@ fn gen_lengths_t_max(lengths: &Vec<i32>) -> Vec<(i32, i32)> {
 
             // If length isn't one of the hard-coded values, panic and tell the user
             _ => {
-                panic!("Error: {length} isn't a valid substrate length! Please supply a power of 2 from 8 to 4096 inclusive.", length = *length);
+                panic!("Error: {length} isn't a valid substrate length! Please supply a power of 2 from 8 to 16384 inclusive.", length = *length);
             }
         };
         lengths_with_t_max.push((*length, t_max));
