@@ -73,7 +73,7 @@ Create a simulation for Tetriminos?
 
 ## Acknowledgements
 
-- The Ballistic Deposition logic used within this code has been adapted, with permission, from code written by Dr. Arne Schwettmann as part of his [Master's Thesis on Ballistic Deposition](https://digital.library.unt.edu/ark:/67531/metadc4392/m2/1/high_res_d/problieu.pdf). I would recommend
+- The Ballistic Deposition logic used within this code has been adapted, with permission, from code written by Dr. Arne Schwettmann as part of his [Master's Thesis on Ballistic Deposition](https://digital.library.unt.edu/ark:/67531/metadc4392/m2/1/high_res_d/problieu.pdf). The simulation logic within my `sim` module almost entirely a Rust port (with minor modifications) of his C++ code in Appendix A of the aforementioned paper. Thank you to him.
 - This code includes a port into Rust of the `ran2()` random number generator, which can be found in the book 
 [Numerical Recipes in C](http://s3.amazonaws.com/nrbook.com/book_C210.html), page 282.
 - The community at [URLO](users.rust-lang.org), who are always (very patiently!) happy to help out new learners of the language such as myself.
